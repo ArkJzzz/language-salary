@@ -15,11 +15,6 @@ import collections
 import statistics
 import argparse
 from itertools import count
-# import os
-# import time
-# from os.path import isfile
-# from os.path import join as joinpath
-# from dotenv import load_dotenv
 
 
 def sort_dictionary_by_values(dictionary, reverse=False):
