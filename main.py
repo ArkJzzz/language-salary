@@ -7,9 +7,6 @@ Docstrings: http://www.python.org/dev/peps/pep-0257/
 
 ###################################
 #    ToDo
-# Убрать токен в .env
-# убрать файлы fetch_hhru_vacancies.py и fetch_superjob_vacancies.py из индекса git
-# Посчитайте среднюю зарплату по языкам на SuperJob 
 # Сделайте красивый вывод в консоль [terminaltables]
 # Выведите таблицу статистику по двум сайтам 
 # git
@@ -25,8 +22,10 @@ import logging
 import collections
 import statistics
 import argparse
-from itertools import count
+import os
 from dotenv import load_dotenv
+# from itertools import count
+import itertools
 
 
 def sort_dictionary_by_values(dictionary, reverse=False):
@@ -53,18 +52,19 @@ def get_hhru_vacancies(language, page=0, area=2, only_with_salary=True):
 
     return response.json()
 
-def get_sj_vacancies():
-    host = 'https://api.superjob.ru/2.0/vacancies/'
 
-    ## FIXME: убрать нахер отсюда токен
+def get_sj_vacancies(X_Api_App_Id, sj_auth, language, catalogues, page, count, town):
+    host = 'https://api.superjob.ru/2.0/vacancies/'
     headers = {
         'X-Api-App-Id': X_Api_App_Id,
-        'Authorization': sj_authorization,
+        'Authorization': sj_auth,
     }
     payload = {
-        'keyword': 'программист',
-        'town': 14,
-        'catalogues': 33,
+        'keyword': 'Программист {language}'.format(language=language),
+        'catalogues': catalogues,
+        'page': page,
+        'town': town,
+
     }
 
     response = requests.get(host, headers=headers, params=payload)
@@ -122,7 +122,10 @@ def get_hhru_statistics(languages, area, only_with_salary):
 
         all_language_salaryes = [predict_rub_salary_hhru(vacancy) for vacancy in vacancies_items if predict_rub_salary_hhru(vacancy)]
 
-        average_salary = statistics.mean(all_language_salaryes)
+        if len(all_language_salaryes) > 0:
+            average_salary = statistics.mean(all_language_salaryes)
+        else:
+            average_salary = 0
         average_salary = int(average_salary)
         language_data = {
             'vacancies_found': vacancies['found'],
@@ -135,22 +138,46 @@ def get_hhru_statistics(languages, area, only_with_salary):
     return language_stat
 
 
-def print_hhru_statistics(language_stat):
+def get_sj_statiscics(languages, X_Api_App_Id, sj_auth, catalogues=33, town=14):
+    language_stat = {}
+    count = 100 #количество результатов на странице, 100 - максимальное
+
+    for language in languages: 
+        vacancies_items = []
+        for page in itertools.count(0):
+            vacancies = get_sj_vacancies(X_Api_App_Id, sj_auth, language, catalogues, page, count, town)
+            pages = (vacancies['total'] // count) + 1
+            if page >= pages:
+                break
+            for vacancy in vacancies['objects']:
+                vacancies_items.append(vacancy)
+
+        all_language_salaryes = [predict_rub_salary_sj(vacancy) for vacancy in vacancies_items if predict_rub_salary_sj(vacancy)]
+        
+        if len(all_language_salaryes) > 0:
+            average_salary = statistics.mean(all_language_salaryes)
+        else:
+            average_salary = 0
+        average_salary = int(average_salary)
+        language_data = {
+            'vacancies_found': vacancies['total'],
+            'vacancies_processed': len(all_language_salaryes),
+            'average_salary': average_salary
+        }
+
+        language_stat[language] = language_data
+
+
+    return language_stat
+
+
+
+def print_statistics(language_stat):
     for language, stat in language_stat.items():
         print(language)
         print(stat)
 
 
-def print_sj_statistics(vacancy, payment):
-    print('{profession}, {town}, {payment}, {currency}'.format(
-        profession=vacancy['profession'], 
-        town=vacancy['town']['title'],
-        payment=payment,
-        currency=vacancy['currency'],
-        salary_from=vacancy['payment_from'],
-        salary_to=vacancy['payment_to'],
-        )
-    )
 
    
 
@@ -162,39 +189,42 @@ def main():
 
     load_dotenv()
     X_Api_App_Id = os.getenv("X_Api_App_Id")
-    sj_authorization = os.getenv("Authorization")
+    sj_auth = os.getenv("Authorization")
 
 
 
-    area = 2
-    only_with_salary = True
+
     languages = [
         'python',
         'php',
         'java',
         'javascript',
         'go',
-        'c',
     ]
 
+    catalogues = 33
+    page = 3
+    town = 14
+    area = 2
+    only_with_salary = True
 
     # do
 
 
 
     # try:
-    #     language_stat = get_hhru_statistics(languages, area, only_with_salary)
-    #     print_hhru_statistics(language_stat)
-    #     print(language_stat)
+    #     hh_language_stat = get_hhru_statistics(languages, area, only_with_salary)
+    #     print_statistics(hh_language_stat)
+    #     print(hh_language_stat)
     # except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
     #     logging.error('HTTPError: Not Found', exc_info=True)
 
 
     try:
-        vacancies = get_sj_vacancies()
-        for vacancy in vacancies['objects']:    
-            payment = predict_rub_salary_sj(vacancy)
-            print_sj_statistics(vacancy, payment)
+        sj_language_stat = get_sj_statiscics(languages, X_Api_App_Id, sj_auth)
+        print_statistics(sj_language_stat)
+
+
     except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
         logging.error('HTTPError: Not Found', exc_info=True)
 
@@ -204,4 +234,14 @@ if __name__ == '__main__':
     main()
 
 
+# ['objects', 'total', 'subscription_active', 'subscription_id', 'more']
+
+# ['agreement', 'canEdit', 'id_client', 'maritalstatus', 'date_published', 
+# 'education', 'experience', 'gender', 'firm_name', 'languages', 'rejected', 
+# 'is_archive', 'compensation', 'id', 'metro', 'moveable', 'age_from', 'response_info', 
+# 'driving_licence', 'anonymous', 'is_closed', 'agency', 'fax', 'profession', 'place_of_work', 
+# 'age_to', 'payment', 'date_archived', 'highlight', 'latitude', 'date_pub_to', 'children', 
+# 'work', 'client_logo', 'is_storage', 'catalogues', 'vacancyRichText', 'payment_from', 
+# 'client', 'longitude', 'candidat', 'link', 'payment_to', 'address', 'town', 'phones', 
+# 'faxes', 'firm_activity', 'phone', 'type_of_work', 'currency', 'already_sent_on_vacancy']
 
