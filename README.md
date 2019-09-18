@@ -37,7 +37,7 @@ python3 main.py
 
 ## Примерный результат выполнения
 
-![](//example.png/600x200)
+![](example.png)
 
 
 
