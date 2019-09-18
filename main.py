@@ -23,21 +23,22 @@ import collections
 import statistics
 import argparse
 import os
-from dotenv import load_dotenv
-# from itertools import count
 import itertools
+from dotenv import load_dotenv
+from terminaltables import AsciiTable
+
+def predict_salary(salary_from, salary_to):
+    if not salary_from and not salary_to:
+        return None
+    if not salary_to:
+        return salary_from * 1.2
+    elif  not salary_from:
+        return salary_to * 0.8
+    else:
+        return statistics.mean([salary_from, salary_to])
 
 
-def sort_dictionary_by_values(dictionary, reverse=False):
-    sorted_dictionary = sorted(
-        dictionary.items(), 
-        key=lambda k: k[1], 
-        reverse=reverse # Если нужно по возрастанию, то reverse=False
-        )
-    return collections.OrderedDict(sorted_dictionary)
-
-
-def get_hhru_vacancies(language, page=0, area=2, only_with_salary=True):
+def get_hhru_vacancies(language, page, area, only_with_salary):
     host = 'api.hh.ru'
     url = 'https://{host}/vacancies'.format(host=host)
     payload = {
@@ -73,17 +74,6 @@ def get_sj_vacancies(X_Api_App_Id, sj_auth, language, catalogues, page, count, t
     return response.json()
 
 
-def predict_salary(salary_from, salary_to):
-    if not salary_from and not salary_to:
-        return None
-    if not salary_to:
-        return salary_from * 1.2
-    elif  not salary_from:
-        return salary_to * 0.8
-    else:
-        return statistics.mean([salary_from, salary_to])
-
-
 def predict_rub_salary_hhru(vacancy):
     salary = vacancy['salary']
     if salary['currency'] == 'RUR':
@@ -112,7 +102,7 @@ def get_hhru_statistics(languages, area, only_with_salary):
 
     for language in languages: 
         vacancies_items = []
-        for page in count(0):
+        for page in itertools.count(0):
             vacancies = get_hhru_vacancies(language, page, area, only_with_salary)
             pages = vacancies['pages']
             if page >= pages:
@@ -171,15 +161,23 @@ def get_sj_statiscics(languages, X_Api_App_Id, sj_auth, catalogues=33, town=14):
     return language_stat
 
 
+def print_statistics(resourse, city, language_stat):
+    title = '{resourse} {city}'.format(resourse=resourse, city=city)
+    table_content = [('Язык программирования', 'Вакансий Найдено', 'Вакансий обработано', 'Средняя зарплата')]
 
-def print_statistics(language_stat):
-    for language, stat in language_stat.items():
-        print(language)
-        print(stat)
+    for language, statistic in language_stat.items():
+        chunk = (
+            language,
+            statistic['vacancies_found'], 
+            statistic['vacancies_processed'],
+            statistic['average_salary'],
+        )
+        table_content.append(chunk)
 
+    table = AsciiTable(table_content, title)
+    print(table.table)
+    print()
 
-
-   
 
 def main():
 
@@ -187,12 +185,15 @@ def main():
 
     logging.basicConfig(format = u'[LINE:%(lineno)d]#  %(message)s', level = logging.DEBUG)
 
-    load_dotenv()
-    X_Api_App_Id = os.getenv("X_Api_App_Id")
-    sj_auth = os.getenv("Authorization")
+    city = 'Санкт-Петербург'
 
-
-
+    if city == 'Санкт-Петербург':
+        area = 2
+        town = 14
+    else:
+        city = 'Москва'
+        area = 1
+        town = 4 
 
     languages = [
         'python',
@@ -202,46 +203,26 @@ def main():
         'go',
     ]
 
-    catalogues = 33
-    page = 3
-    town = 14
-    area = 2
+    # HH.ru
     only_with_salary = True
 
+    # SuperJob
+    load_dotenv()
+    X_Api_App_Id = os.getenv("X_Api_App_Id")
+    sj_auth = os.getenv("Authorization")
+    catalogues = 33
+    
     # do
-
-
-
-    # try:
-    #     hh_language_stat = get_hhru_statistics(languages, area, only_with_salary)
-    #     print_statistics(hh_language_stat)
-    #     print(hh_language_stat)
-    # except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
-    #     logging.error('HTTPError: Not Found', exc_info=True)
-
 
     try:
         sj_language_stat = get_sj_statiscics(languages, X_Api_App_Id, sj_auth)
-        print_statistics(sj_language_stat)
-
-
+        hh_language_stat = get_hhru_statistics(languages, area, only_with_salary)
+        print_statistics('HH.ru', city, hh_language_stat)
+        print_statistics('SuperJob', city, sj_language_stat)
     except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
         logging.error('HTTPError: Not Found', exc_info=True)
 
 
-
 if __name__ == '__main__':
     main()
-
-
-# ['objects', 'total', 'subscription_active', 'subscription_id', 'more']
-
-# ['agreement', 'canEdit', 'id_client', 'maritalstatus', 'date_published', 
-# 'education', 'experience', 'gender', 'firm_name', 'languages', 'rejected', 
-# 'is_archive', 'compensation', 'id', 'metro', 'moveable', 'age_from', 'response_info', 
-# 'driving_licence', 'anonymous', 'is_closed', 'agency', 'fax', 'profession', 'place_of_work', 
-# 'age_to', 'payment', 'date_archived', 'highlight', 'latitude', 'date_pub_to', 'children', 
-# 'work', 'client_logo', 'is_storage', 'catalogues', 'vacancyRichText', 'payment_from', 
-# 'client', 'longitude', 'candidat', 'link', 'payment_to', 'address', 'town', 'phones', 
-# 'faxes', 'firm_activity', 'phone', 'type_of_work', 'currency', 'already_sent_on_vacancy']
 
