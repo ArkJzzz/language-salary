@@ -5,14 +5,6 @@ Module Docstring
 Docstrings: http://www.python.org/dev/peps/pep-0257/
 """
 
-###################################
-#    ToDo
-# Сделайте красивый вывод в консоль [terminaltables]
-# Выведите таблицу статистику по двум сайтам 
-# git
-# readme.md
-# сдать на проверку
-####################################
 
 __author__ = 'ArkJzzz (arkjzzz@gmail.com)'
 
